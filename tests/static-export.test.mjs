@@ -27,6 +27,7 @@ test("exports a serverless GitHub Pages site under /CWG/", async () => {
   assert.match(html, /World Name/);
   assert.match(html, /Seed/);
   assert.match(html, /Generate World/);
+  assert.doesNotMatch(html, /compatibility verification pending/);
   assert.match(html, /href="\/CWG\/_next\/static\//);
   assert.match(html, /src="\/CWG\/_next\/static\//);
   assert.doesNotMatch(html, /(?:href|src)="\/_next\//);

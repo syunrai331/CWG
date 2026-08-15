@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 3,
+  "templateBedrockVersion": "1.26.33.2",
+  "minimumCompatibleVersion": "1.26.30",
+  "compatibility": {
+    "targetBedrockVersion": "1.26.44",
+    "achievementVerification": "pending-client-verification",
+    "minecraftClientVerified": false,
+    "note": "Legacy 1.26.33.2 template retained only while 1.26.44 diagnostic variants are tested. Achievement availability is not guaranteed."
+  },
+  "placement": {
+    "strategy": "end-bootstrap-structure",
+    "structureId": "mvp:creative_switch",
+    "command": "gamemode c @p",
+    "button": "minecraft:stone_button",
+    "playerOffset": { "x": 2, "y": 0, "z": 0 },
+    "requiresAir": [
+      { "x": 2, "y": 0, "z": 0 },
+      { "x": 2, "y": 1, "z": 0 }
+    ],
+    "bootstrap": {
+      "dimension": 2,
+      "x": 512,
+      "y": 250,
+      "z": 512,
+      "chunkX": 32,
+      "chunkZ": 32,
+      "commandBlocks": 3
+    }
+  },
+  "dbFiles": {
+    "db/000005.ldb": { "size": 1476, "sha256": "5cd6d6df8fda7e20f84d9f4c0c6ae965f69171180c90687f3833ef96c51b17af" },
+    "db/000008.ldb": { "size": 1598, "sha256": "d7e906ccbd0cfee5282ecb40b52947c8040fc84c48bd4ef96ed1006bcafffd19" },
+    "db/000013.log": { "size": 2173, "sha256": "8ae5ef89dfa90dac2ef0ef4241a422b594ab88ccfe4af8dde78de8194cbd4a51" },
+    "db/CURRENT": { "size": 16, "sha256": "eaab30ed3bde0318e208d83e6b0701b3ee9eb6b11da2d9fbab1552e8e4ce88f8" },
+    "db/LOCK": { "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
+    "db/MANIFEST-000012": { "size": 207, "sha256": "7e845c86d96b2983de3836646691c0f69fc049b96402de2379bc13f72dee9b7f" }
+  }
+}

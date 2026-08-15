@@ -7,7 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import { unzipSync } from "fflate";
 import {
-  assertWorldState,
+  assertAchievementPrerequisites,
   parseLevelDat,
   snapshotWorldState,
   writeLevelDat,
@@ -41,7 +41,7 @@ async function loadTemplate() {
   };
 }
 
-test("template ZIP and level.dat match the fixed Survival contract", async () => {
+test("production template matches the 26.44-verified E oracle and serialized prerequisites", async () => {
   const { bytes, manifest } = await loadTemplate();
   const files = unzipSync(bytes);
   assert.deepEqual(
@@ -50,10 +50,27 @@ test("template ZIP and level.dat match the fixed Survival contract", async () =>
   );
   await validateTemplate(files, manifest);
 
-  const state = assertWorldState(parseLevelDat(files["level.dat"]));
-  assert.equal(state.worldName, "MCWorld MVP Template");
-  assert.equal(state.difficulty, 2);
-  assert.equal(manifest.schemaVersion, 2);
+  const state = assertAchievementPrerequisites(parseLevelDat(files["level.dat"]));
+  assert.equal(state.worldName, "CWG 26.44 E - Full Bootstrap");
+  assert.equal(state.difficulty, 1);
+  assert.deepEqual(state.permissions, {
+    permissionsLevel: 0,
+    playerPermissionsLevel: 1,
+    abilityOp: 0,
+    abilityTeleport: 0,
+    abilityFlying: 0,
+    abilityInstabuild: 0,
+    abilityInvulnerable: 0,
+    abilityMayfly: 0,
+  });
+  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.templateBedrockVersion, "1.26.33.2");
+  assert.equal(manifest.compatibility.targetBedrockVersion, "1.26.44");
+  assert.equal(manifest.compatibility.achievementVerification, "verified");
+  assert.equal(manifest.compatibility.minecraftClientVerified, true);
+  assert.equal(manifest.compatibility.verifiedClientVersion, "1.26.44");
+  assert.equal(manifest.compatibility.verifiedVariant, "E:05-full-bootstrap.mcworld");
+  assert.equal(manifest.compatibility.verifiedResult, "achievement-enabled-in-world-settings");
   assert.equal(manifest.placement.strategy, "end-bootstrap-structure");
   assert.equal(manifest.placement.command, "gamemode c @p");
   assert.equal(manifest.placement.button, "minecraft:stone_button");
@@ -64,27 +81,44 @@ test("template ZIP and level.dat match the fixed Survival contract", async () =>
   assert.deepEqual(snapshotWorldState(parseLevelDat(roundTrip)), state);
 });
 
-test("generator preserves signed 64-bit seeds and rewrites requested settings", async () => {
+test("generator preserves signed 64-bit seeds and changes only requested settings", async () => {
   const { bytes, manifest } = await loadTemplate();
+  const templateState = snapshotWorldState(parseLevelDat(unzipSync(bytes)["level.dat"]));
+  const worldName = "MVP 実機テスト";
   const result = await generateWorldFromTemplate(bytes, manifest, {
-    worldName: "MVP 実機テスト",
+    worldName,
     seed: MIN_SIGNED_64,
     difficulty: 3,
   });
   const files = unzipSync(result.archive);
-  const state = assertWorldState(parseLevelDat(files["level.dat"]), {
-    worldName: "MVP 実機テスト",
+  const state = assertAchievementPrerequisites(parseLevelDat(files["level.dat"]), {
+    worldName,
     seed: MIN_SIGNED_64,
     difficulty: 3,
   });
   assert.equal(state.seed, -9223372036854775808n);
-  assert.equal(new TextDecoder().decode(files["levelname.txt"]), "MVP 実機テスト");
-  assert.equal(result.fileName, "MVP 実機テスト.mcworld");
+  assert.equal(new TextDecoder().decode(files["levelname.txt"]), worldName);
+  assert.equal(result.fileName, `${worldName}.mcworld`);
+  assert.deepEqual(state, {
+    ...templateState,
+    worldName,
+    seed: MIN_SIGNED_64,
+    difficulty: 3,
+  });
 
   const oldState = snapshotWorldState(parseLevelDat(files["level.dat_old"]));
   assert.equal(oldState.worldName, state.worldName);
   assert.equal(oldState.seed, state.seed);
   assert.equal(oldState.difficulty, state.difficulty);
+});
+
+test("pre-fix production fixture is rejected by the E-oracle validator", async () => {
+  const fixturePath = path.join(root, "tests", "fixtures", "pre-fix-production-1.26.33.2.mcworld");
+  const files = unzipSync(new Uint8Array(await readFile(fixturePath)));
+  assert.throws(
+    () => assertAchievementPrerequisites(parseLevelDat(files["level.dat"])),
+    /Operator or Creative abilities differ from the verified E oracle/,
+  );
 });
 
 test("seed parsing never routes through Number", () => {
