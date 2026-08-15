@@ -1,7 +1,7 @@
 import { strToU8, unzipSync, zipSync } from "fflate";
 import {
   applyWorldSettings,
-  assertWorldState,
+  assertAchievementPrerequisites,
   parseLevelDat,
   type DifficultyValue,
   type WorldStateSnapshot,
@@ -11,9 +11,19 @@ export const MIN_SIGNED_64 = -(1n << 63n);
 export const MAX_SIGNED_64 = (1n << 63n) - 1n;
 
 export type TemplateManifest = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   templateBedrockVersion: string;
   minimumCompatibleVersion: string;
+  compatibility: {
+    targetBedrockVersion: "1.26.44";
+    achievementVerification: "pending-client-verification" | "verified";
+    minecraftClientVerified: boolean;
+    verifiedClientVersion?: string;
+    verifiedVariant?: string;
+    verifiedResult?: string;
+    verificationDate?: string;
+    note: string;
+  };
   placement: {
     strategy: "end-bootstrap-structure";
     structureId: "mvp:creative_switch";
@@ -99,7 +109,18 @@ export async function validateTemplate(
   files: Record<string, Uint8Array>,
   manifest: TemplateManifest,
 ) {
-  if (manifest.schemaVersion !== 2) throw new Error("Unsupported template manifest version.");
+  if (manifest.schemaVersion !== 3) throw new Error("Unsupported template manifest version.");
+  if (
+    manifest.compatibility.targetBedrockVersion !== "1.26.44" ||
+    manifest.compatibility.achievementVerification === "verified" &&
+      (
+        !manifest.compatibility.minecraftClientVerified ||
+        manifest.compatibility.verifiedClientVersion !== "1.26.44" ||
+        manifest.compatibility.verifiedResult !== "achievement-enabled-in-world-settings"
+      )
+  ) {
+    throw new Error("Template compatibility metadata is inconsistent.");
+  }
   if (
     manifest.placement.strategy !== "end-bootstrap-structure" ||
     manifest.placement.structureId !== "mvp:creative_switch" ||
@@ -130,7 +151,7 @@ export async function validateTemplate(
   for (const requiredPath of ["level.dat", "level.dat_old", "levelname.txt", "db/CURRENT"]) {
     if (!files[requiredPath]) throw new Error(`Template is missing ${requiredPath}.`);
   }
-  assertWorldState(parseLevelDat(files["level.dat"]));
+  assertAchievementPrerequisites(parseLevelDat(files["level.dat"]));
 
   for (const [filePath, expected] of Object.entries(manifest.dbFiles)) {
     const bytes = files[filePath];
@@ -155,7 +176,7 @@ export async function generateWorldFromTemplate(
   files["level.dat_old"] = applyWorldSettings(files["level.dat_old"], { ...options, worldName });
   files["levelname.txt"] = strToU8(worldName);
 
-  const state = assertWorldState(parseLevelDat(files["level.dat"]), { ...options, worldName });
+  const state = assertAchievementPrerequisites(parseLevelDat(files["level.dat"]), { ...options, worldName });
   return {
     archive: zipSync(files, { level: 9 }),
     fileName: safeWorldFileName(worldName),

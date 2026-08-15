@@ -53,10 +53,52 @@ export type WorldStateSnapshot = {
   seed: bigint;
   difficulty: number;
   gameType: number;
+  forceGameType: number;
+  generator: number;
+  hardcore: number;
   cheatsEnabled: number;
   commandsEnabled: number;
   hasBeenLoadedInCreative: number;
   commandBlocksEnabled: number;
+  templateFlags: {
+    isFromLockedTemplate: number;
+    isFromWorldTemplate: number;
+    isSingleUseWorld: number;
+    isWorldTemplateOptionLocked: number;
+  };
+  packFlags: {
+    hasLockedBehaviorPack: number;
+    hasLockedResourcePack: number;
+    requiresCopiedPackRemovalCheck: number;
+    texturePacksRequired: number;
+  };
+  environmentFlags: {
+    immutableWorld: number;
+    educationFeaturesEnabled: number;
+    isCreatedInEditor: number;
+    isExportedFromEditor: number;
+  };
+  experiments: {
+    experimentsEverUsed: number;
+    savedWithToggledExperiments: number;
+  };
+  permissions: {
+    permissionsLevel: number;
+    playerPermissionsLevel: number;
+    abilityOp: number;
+    abilityTeleport: number;
+    abilityFlying: number;
+    abilityInstabuild: number;
+    abilityInvulnerable: number;
+    abilityMayfly: number;
+  };
+  versions: {
+    storageVersion: number;
+    networkVersion: number;
+    minimumCompatibleClientVersion: number[];
+    lastOpenedWithVersion: number[];
+    baseGameVersionPresent: boolean;
+  };
 };
 
 const textDecoder = new TextDecoder("utf-8");
@@ -411,55 +453,118 @@ export function applyWorldSettings(bytes: Uint8Array, settings: WorldSettings) {
   requireTag(root, "LevelName", NbtType.String).value = settings.worldName;
   requireTag(root, "RandomSeed", NbtType.Long).value = settings.seed;
   setNumber(root, "Difficulty", NbtType.Int, settings.difficulty);
-  setNumber(root, "GameType", NbtType.Int, 0);
-  setNumber(root, "ForceGameType", NbtType.Byte, 0);
-  setNumber(root, "IsHardcore", NbtType.Byte, 0);
-  setNumber(root, "cheatsEnabled", NbtType.Byte, 0);
-  setNumber(root, "commandsEnabled", NbtType.Byte, 0);
-  setNumber(root, "hasBeenLoadedInCreative", NbtType.Byte, 0);
-  setNumber(root, "commandblocksenabled", NbtType.Byte, 1);
-  setNumber(root, "educationFeaturesEnabled", NbtType.Byte, 0);
-  setNumber(root, "immutableWorld", NbtType.Byte, 0);
-  setNumber(root, "isCreatedInEditor", NbtType.Byte, 0);
-  setNumber(root, "isExportedFromEditor", NbtType.Byte, 0);
-
-  const experiments = asCompound(requireTag(root, "experiments", NbtType.Compound), "experiments");
-  setNumber(experiments, "experiments_ever_used", NbtType.Byte, 0);
-  setNumber(experiments, "saved_with_toggled_experiments", NbtType.Byte, 0);
-
-  const abilities = asCompound(requireTag(root, "abilities", NbtType.Compound), "abilities");
-  setNumber(abilities, "flying", NbtType.Byte, 0);
-  setNumber(abilities, "instabuild", NbtType.Byte, 0);
-  setNumber(abilities, "invulnerable", NbtType.Byte, 0);
-  setNumber(abilities, "mayfly", NbtType.Byte, 0);
 
   const output = writeLevelDat(document);
-  assertWorldState(parseLevelDat(output), settings);
+  assertAchievementPrerequisites(parseLevelDat(output), settings);
   return output;
 }
 
 export function snapshotWorldState(document: LevelDatDocument): WorldStateSnapshot {
   const root = asCompound(document.root, "level.dat root");
+  const experiments = asCompound(requireTag(root, "experiments", NbtType.Compound), "experiments");
+  const abilities = asCompound(requireTag(root, "abilities", NbtType.Compound), "abilities");
+  const numberList = (name: string) => {
+    const value = requireTag(root, name, NbtType.List).value as NbtList;
+    if (value.elementType !== NbtType.Int) throw new Error(`${name} must be a list of integers.`);
+    return value.items.map((item) => item.value as number);
+  };
   return {
     worldName: requireTag(root, "LevelName", NbtType.String).value as string,
     seed: requireTag(root, "RandomSeed", NbtType.Long).value as bigint,
     difficulty: requireTag(root, "Difficulty", NbtType.Int).value as number,
     gameType: requireTag(root, "GameType", NbtType.Int).value as number,
+    forceGameType: requireTag(root, "ForceGameType", NbtType.Byte).value as number,
+    generator: requireTag(root, "Generator", NbtType.Int).value as number,
+    hardcore: requireTag(root, "IsHardcore", NbtType.Byte).value as number,
     cheatsEnabled: requireTag(root, "cheatsEnabled", NbtType.Byte).value as number,
     commandsEnabled: requireTag(root, "commandsEnabled", NbtType.Byte).value as number,
     hasBeenLoadedInCreative: requireTag(root, "hasBeenLoadedInCreative", NbtType.Byte).value as number,
     commandBlocksEnabled: requireTag(root, "commandblocksenabled", NbtType.Byte).value as number,
+    templateFlags: {
+      isFromLockedTemplate: requireTag(root, "isFromLockedTemplate", NbtType.Byte).value as number,
+      isFromWorldTemplate: requireTag(root, "isFromWorldTemplate", NbtType.Byte).value as number,
+      isSingleUseWorld: requireTag(root, "isSingleUseWorld", NbtType.Byte).value as number,
+      isWorldTemplateOptionLocked: requireTag(root, "isWorldTemplateOptionLocked", NbtType.Byte).value as number,
+    },
+    packFlags: {
+      hasLockedBehaviorPack: requireTag(root, "hasLockedBehaviorPack", NbtType.Byte).value as number,
+      hasLockedResourcePack: requireTag(root, "hasLockedResourcePack", NbtType.Byte).value as number,
+      requiresCopiedPackRemovalCheck: requireTag(root, "requiresCopiedPackRemovalCheck", NbtType.Byte).value as number,
+      texturePacksRequired: requireTag(root, "texturePacksRequired", NbtType.Byte).value as number,
+    },
+    environmentFlags: {
+      immutableWorld: requireTag(root, "immutableWorld", NbtType.Byte).value as number,
+      educationFeaturesEnabled: requireTag(root, "educationFeaturesEnabled", NbtType.Byte).value as number,
+      isCreatedInEditor: requireTag(root, "isCreatedInEditor", NbtType.Byte).value as number,
+      isExportedFromEditor: requireTag(root, "isExportedFromEditor", NbtType.Byte).value as number,
+    },
+    experiments: {
+      experimentsEverUsed: requireTag(experiments, "experiments_ever_used", NbtType.Byte).value as number,
+      savedWithToggledExperiments: requireTag(experiments, "saved_with_toggled_experiments", NbtType.Byte).value as number,
+    },
+    permissions: {
+      permissionsLevel: requireTag(root, "permissionsLevel", NbtType.Int).value as number,
+      playerPermissionsLevel: requireTag(root, "playerPermissionsLevel", NbtType.Int).value as number,
+      abilityOp: requireTag(abilities, "op", NbtType.Byte).value as number,
+      abilityTeleport: requireTag(abilities, "teleport", NbtType.Byte).value as number,
+      abilityFlying: requireTag(abilities, "flying", NbtType.Byte).value as number,
+      abilityInstabuild: requireTag(abilities, "instabuild", NbtType.Byte).value as number,
+      abilityInvulnerable: requireTag(abilities, "invulnerable", NbtType.Byte).value as number,
+      abilityMayfly: requireTag(abilities, "mayfly", NbtType.Byte).value as number,
+    },
+    versions: {
+      storageVersion: requireTag(root, "StorageVersion", NbtType.Int).value as number,
+      networkVersion: requireTag(root, "NetworkVersion", NbtType.Int).value as number,
+      minimumCompatibleClientVersion: numberList("MinimumCompatibleClientVersion"),
+      lastOpenedWithVersion: numberList("lastOpenedWithVersion"),
+      baseGameVersionPresent: root.baseGameVersion !== undefined,
+    },
   };
 }
 
-export function assertWorldState(document: LevelDatDocument, settings?: WorldSettings) {
+/**
+ * Verifies only serialized prerequisites that CWG can inspect. Minecraft's
+ * client-side achievement decision also considers data outside these tags.
+ */
+export function assertAchievementPrerequisites(document: LevelDatDocument, settings?: WorldSettings) {
   const state = snapshotWorldState(document);
   if (state.gameType !== 0) throw new Error("Generated world is not Survival.");
+  if (state.forceGameType !== 0 || state.generator !== 1 || state.hardcore !== 0) {
+    throw new Error("Generated world does not match the verified Survival world-mode prerequisites.");
+  }
   if (state.cheatsEnabled !== 0 || state.commandsEnabled !== 0) {
     throw new Error("Generated world does not have cheats disabled.");
   }
   if (state.hasBeenLoadedInCreative !== 0) throw new Error("Creative history flag is set.");
-  if (state.commandBlocksEnabled !== 1) throw new Error("Command blocks are disabled.");
+  if (state.commandBlocksEnabled !== 1) throw new Error("Command blocks are disabled in the candidate world.");
+  if (Object.values(state.templateFlags).some((value) => value !== 0)) {
+    throw new Error("Template-origin flags differ from the verified E oracle.");
+  }
+  if (Object.values(state.packFlags).some((value) => value !== 0)) {
+    throw new Error("Pack-lock flags differ from the verified E oracle.");
+  }
+  if (Object.values(state.environmentFlags).some((value) => value !== 0)) {
+    throw new Error("Education, immutable, or Editor flags differ from the verified E oracle.");
+  }
+  if (Object.values(state.experiments).some((value) => value !== 0)) {
+    throw new Error("Experiment history differs from the verified E oracle.");
+  }
+  if (
+    state.permissions.permissionsLevel !== 0 ||
+    state.permissions.playerPermissionsLevel !== 1 ||
+    Object.entries(state.permissions).some(([name, value]) => name.startsWith("ability") && value !== 0)
+  ) {
+    throw new Error("Operator or Creative abilities differ from the verified E oracle.");
+  }
+  if (
+    state.versions.storageVersion !== 10 ||
+    state.versions.networkVersion !== 1001 ||
+    state.versions.minimumCompatibleClientVersion.join(".") !== "1.26.30.0.0" ||
+    state.versions.lastOpenedWithVersion.join(".") !== "1.26.33.2.0" ||
+    state.versions.baseGameVersionPresent
+  ) {
+    throw new Error("Version metadata differs from the verified E oracle.");
+  }
   if (settings) {
     if (state.worldName !== settings.worldName) throw new Error("World name did not round-trip.");
     if (state.seed !== settings.seed) throw new Error("Seed did not round-trip as signed 64-bit data.");
